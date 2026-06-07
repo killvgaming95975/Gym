@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>φ Golden Eye — Camera</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap');
+
+  :root {
+    --phi: 1.6180339887;
+    --gold:    #C9A84C;
+    --gold2:   #E8C96B;
+    --gold3:   #F5E6A3;
+    --deep:    #0A0705;
+    --dark1:   #120E09;
+    --dark2:   #1E1610;
+    --dark3:   #2A1F12;
+    --amber:   #8B5E1A;
+    --cream:   #F9F1DC;
+    --shadow:  rgba(201,168,76,0.35);
+  }
+
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+  html, body {
+    width:100%; height:100%;
+    background: var(--deep);
+    font-family: 'Cormorant Garamond', serif;
+    overflow: hidden;
+    color: var(--cream);
+  }
+
+  /* ═══ BACKGROUND SACRED GEOMETRY ═══ */
+  #bg-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.18;
+    pointer-events: none;
+  }
+
+  /* ═══ MAIN WRAPPER ═══ */
+  #app {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+  }
+
+  /* ═══ HEADER ═══ */
+  #header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(180deg, rgba(10,7,5,0.95) 0%, transparent 100%);
+    z-index: 100;
+  }
+  #logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #phi-symbol {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 26px;
+    color: var(--gold);
+    text-shadow: 0 0 20px var(--shadow), 0 0 40px rgba(201,168,76,0.2);
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%,100% { text-shadow: 0 0 20px var(--shadow), 0 0 40px rgba(201,168,76,0.2); }
+    50%      { text-shadow: 0 0 30px var(--gold), 0 0 60px rgba(201,168,76,0.4), 0 0 80px rgba(201,168,76,0.15); }
+  }
+  #app-name {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--gold2);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+  #phi-value {
+    font-size: 11px;
+    color: var(--gold);
+    opacity: 0.7;
+    letter-spacing: 2px;
+    font-style: italic;
+  }
+
+  /* ═══ CAMERA CONTAINER ═══ */
+  #camera-wrapper {
+    position: relative;
+    width: min(100vw, calc(100vh * 0.75));
+    height: min(100vh, calc(100vw * 1.333));
+    max-width: 480px;
+    max-height: 100vh;
+  }
+
+  #video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: var(--dark2);
+  }
+
+  /* ═══ SVG OVERLAY CONTAINER ═══ */
+  #overlay-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* ═══ CORNER ORNAMENTS ═══ */
+  .corner {
+    position: absolute;
+    width: 52px;
+    height: 52px;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .corner svg { width: 100%; height: 100%; }
+  .corner-tl { top: 10px; left: 10px; }
+  .corner-tr { top: 10px; right: 10px; transform: scaleX(-1); }
+  .corner-bl { bottom: 10px; left: 10px; transform: scaleY(-1); }
+  .corner-br { bottom: 10px; right: 10px; transform: scale(-1,-1); }
+
+  /* ═══ PATTERN TOGGLE BUTTONS ═══ */
+  #pattern-bar {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+    background: rgba(10,7,5,0.75);
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 50px;
+    padding: 8px 14px;
+    backdrop-filter: blur(10px);
+  }
+  .pat-btn {
+    padding: 6px 14px;
+    border-radius: 30px;
+    border: 1px solid rgba(201,168,76,0.3);
+    background: transparent;
+    color: var(--gold);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+  .pat-btn.active,
+  .pat-btn:hover {
+    background: rgba(201,168,76,0.2);
+    border-color: var(--gold);
+    color: var(--gold2);
+    box-shadow: 0 0 12px rgba(201,168,76,0.3);
+  }
+
+  /* ═══ BOTTOM CONTROLS ═══ */
+  #controls {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 16px 32px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(0deg, rgba(10,7,5,0.97) 0%, transparent 100%);
+    z-index: 100;
+  }
+
+  #capture-btn {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: 3px solid var(--gold);
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s;
+    box-shadow: 0 0 20px rgba(201,168,76,0.4), inset 0 0 20px rgba(201,168,76,0.08);
+  }
+  #capture-btn::before {
+    content:'';
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--gold2) 0%, var(--gold) 50%, var(--amber) 100%);
+    transition: all 0.3s;
+  }
+  #capture-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 35px rgba(201,168,76,0.7);
+  }
+  #capture-btn:active { transform: scale(0.93); }
+  #capture-btn::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.3);
+    animation: ring-pulse 2s ease-in-out infinite;
+  }
+  @keyframes ring-pulse {
+    0%,100% { opacity:0.3; transform: scale(1); }
+    50%      { opacity:0.7; transform: scale(1.05); }
+  }
+
+  #flip-btn, #opacity-btn {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.4);
+    background: rgba(201,168,76,0.1);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gold);
+    font-size: 20px;
+    transition: all 0.3s;
+    backdrop-filter: blur(10px);
+  }
+  #flip-btn:hover, #opacity-btn:hover {
+    background: rgba(201,168,76,0.25);
+    box-shadow: 0 0 15px rgba(201,168,76,0.4);
+  }
+
+  /* ═══ STATUS INDICATOR ═══ */
+  #status-bar {
+    position: fixed;
+    top: 68px; left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .stat-chip {
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(10,7,5,0.7);
+    border: 1px solid rgba(201,168,76,0.2);
+    font-size: 10px;
+    color: var(--gold);
+    letter-spacing: 1.5px;
+    font-style: italic;
+    backdrop-filter: blur(8px);
+  }
+  .stat-chip.live::before {
+    content: '● ';
+    color: #4CAF50;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* ═══ PERMISSION SCREEN ═══ */
+  #permission-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--deep);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    z-index: 200;
+    padding: 40px;
+  }
+  #permission-screen.hidden { display: none; }
+
+  .perm-phi {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 80px;
+    color: var(--gold);
+    text-shadow: 0 0 60px rgba(201,168,76,0.5);
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%,100%{ transform: translateY(0); }
+    50%    { transform: translateY(-12px); }
+  }
+  .perm-title {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 22px;
+    color: var(--gold2);
+    letter-spacing: 3px;
+    text-align: center;
+  }
+  .perm-sub {
+    font-size: 15px;
+    color: rgba(249,241,220,0.6);
+    text-align: center;
+    font-style: italic;
+    max-width: 300px;
+    line-height: 1.7;
+  }
+  #start-btn {
+    padding: 16px 48px;
+    border-radius: 50px;
+    border: 2px solid var(--gold);
+    background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
+    color: var(--gold2);
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 14px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    transition: all 0.4s;
+    box-shadow: 0 0 30px rgba(201,168,76,0.25), inset 0 0 30px rgba(201,168,76,0.05);
+  }
+  #start-btn:hover {
+    background: linear-gradient(135deg, rgba(201,168,76,0.3), rgba(201,168,76,0.1));
+    box-shadow: 0 0 50px rgba(201,168,76,0.5);
+    transform: scale(1.04);
+  }
+
+  /* ═══ FLASH EFFECT ═══ */
+  #flash {
+    position: fixed;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 500;
+    transition: opacity 0.05s;
+  }
+  #flash.flash-on { opacity: 0.9; }
+
+  /* ═══ OPACITY SLIDER POPUP ═══ */
+  #opacity-popup {
+    position: fixed;
+    bottom: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10,7,5,0.9);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 12px;
+    padding: 14px 20px;
+    display: none;
+    align-items: center;
+    gap: 14px;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  #opacity-popup.visible { display: flex; }
+  #opacity-popup label {
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 2px;
+  }
+  #opacity-slider {
+    -webkit-appearance: none;
+    width: 140px; height: 3px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--gold) 0%, rgba(201,168,76,0.2) 100%);
+    outline: none;
+  }
+  #opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 8px rgba(201,168,76,0.7);
+    cursor: pointer;
+  }
+
+  /* ═══ GOLDEN RATIO SPIRAL ANIMATION ═══ */
+  .spiral-path {
+    stroke-dasharray: 2000;
+    stroke-dashoffset: 2000;
+    animation: draw-spiral 3s ease-out forwards;
+  }
+  @keyframes draw-spiral {
+    to { stroke-dashoffset: 0; }
+  }
+
+  /* ═══ GRID LINES ANIMATION ═══ */
+  .grid-line {
+    animation: fade-in-line 1.5s ease-out forwards;
+    opacity: 0;
+  }
+  @keyframes fade-in-line {
+    to { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Background Sacred Geometry Canvas -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- Flash Effect -->
+<div id="flash"></div>
+
+<!-- Permission Screen -->
+<div id="permission-screen">
+  <div class="perm-phi">φ</div>
+  <div class="perm-title">GOLDEN EYE</div>
+  <div class="perm-sub">
+    Discover divine proportion in every frame.<br>
+    φ = 1.6180339887…
+  </div>
+  <button id="start-btn" onclick="startCamera()">OPEN CAMERA</button>
+  <div style="font-size:11px; color:rgba(201,168,76,0.4); letter-spacing:2px; font-style:italic;">
+    Golden Ratio Composition Guide
+  </div>
+</div>
+
+<!-- Header -->
+<div id="header">
+  <div id="logo">
+    <span id="phi-symbol">φ</span>
+    <span id="app-name">Golden Eye</span>
+  </div>
+  <div id="phi-value">φ = 1.6180339887</div>
+</div>
+
+<!-- Status Bar -->
+<div id="status-bar">
+  <div class="stat-chip live" id="live-chip">LIVE</div>
+  <div class="stat-chip" id="pattern-chip">SPIRAL</div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <div id="camera-wrapper">
+    <video id="video" autoplay playsinline muted></video>
+
+    <!-- SVG Overlay for patterns -->
+    <svg id="overlay-svg" viewBox="0 0 100 133" preserveAspectRatio="none">
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="0.4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="strong-glow">
+          <feGaussianBlur stdDeviation="0.8" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <!-- Gold gradient -->
+        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   stop-color="#F5E6A3" stop-opacity="1"/>
+          <stop offset="50%"  stop-color="#C9A84C" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#8B5E1A" stop-opacity="1"/>
+        </linearGradient>
+        <linearGradient id="goldGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%"   stop-color="#E8C96B" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#C9A84C" stop-opacity="0.5"/>
+        </linearGradient>
+      </defs>
+      <g id="pattern-group"></g>
+    </svg>
+
+    <!-- Corner Ornaments -->
+    <div class="corner corner-tl">
+      <svg viewBox="0 0 52 52">
+        <path d="M2,28 L2,4 Q2,2 4,2 L28,2" fill="none" stroke="#C9A84C" stroke-width="1.5" filter="url(#glow)"/>
+        <path d="M2,18 L2,8 Q2,6 4,6 L18,6" fill="none" stroke="#F5E6A3" stroke-width="0.8" opacity="0.5"/>
+        <circle cx="2" cy="2" r="2" fill="#C9A84C" filter="url(#glow)"/>
+        <circle cx="30" cy="2" r="1" fill="#C9A84C" opacity="0.6"/>
+        <circle cx="2" cy="30" r="1" fill="#C9A84C" opacity="0.6"/>
+        <!-- phi decoration -->
+        <text x="8" y="46" font-family="serif" font-size="10" fill="#C9A84C" opacity="0.7" font-style="italic">φ</text>
+      </svg>
+    </div>
+    <div class="corner corner-tr">
+      <svg viewBox="0 0 52 52">
+        <path d="M2,28 L2,4 Q2,2 4,2 L28,2" fill="none" stroke="#C9A84C" stroke-width="1.5" filter="url(#glow)"/>
+        <path d="M2,18 L2,8 Q2,6 4,6 L18,6" fill="none" stroke="#F5E6A3" stroke-width="0.8" opacity="0.5"/>
+        <circle cx="2" cy="2" r="2" fill="#C9A84C" filter="url(#glow)"/>
+      </svg>
+    </div>
+    <div class="corner corner-bl">
+      <svg viewBox="0 0 52 52">
+        <path d="M2,28 L2,4 Q2,2 4,2 L28,2" fill="none" stroke="#C9A84C" stroke-width="1.5" filter="url(#glow)"/>
+        <path d="M2,18 L2,8 Q2,6 4,6 L18,6" fill="none" stroke="#F5E6A3" stroke-width="0.8" opacity="0.5"/>
+        <circle cx="2" cy="2" r="2" fill="#C9A84C" filter="url(#glow)"/>
+      </svg>
+    </div>
+    <div class="corner corner-br">
+      <svg viewBox="0 0 52 52">
+        <path d="M2,28 L2,4 Q2,2 4,2 L28,2" fill="none" stroke="#C9A84C" stroke-width="1.5" filter="url(#glow)"/>
+        <path d="M2,18 L2,8 Q2,6 4,6 L18,6" fill="none" stroke="#F5E6A3" stroke-width="0.8" opacity="0.5"/>
+        <circle cx="2" cy="2" r="2" fill="#C9A84C" filter="url(#glow)"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- Pattern Selection Bar -->
+<div id="pattern-bar">
+  <button class="pat-btn active" onclick="setPattern('spiral')"  data-pat="spiral">🌀 SPIRAL</button>
+  <button class="pat-btn"        onclick="setPattern('grid')"    data-pat="grid">⊞ GRID</button>
+  <button class="pat-btn"        onclick="setPattern('rect')"    data-pat="rect">▦ RECTS</button>
+  <button class="pat-btn"        onclick="setPattern('eyes')"    data-pat="eyes">◎ EYES</button>
+  <button class="pat-btn"        onclick="setPattern('all')"     data-pat="all">✦ ALL</button>
+</div>
+
+<!-- Opacity Popup -->
+<div id="opacity-popup">
+  <label>OVERLAY</label>
+  <input type="range" id="opacity-slider" min="0" max="100" value="75" oninput="updateOpacity(this.value)">
+  <label id="opacity-val">75%</label>
+</div>
+
+<!-- Bottom Controls -->
+<div id="controls">
+  <button id="flip-btn"    onclick="flipCamera()" title="Flip Camera">🔄</button>
+  <button id="capture-btn" onclick="capturePhoto()" title="Capture"></button>
+  <button id="opacity-btn" onclick="toggleOpacityPanel()" title="Overlay Opacity">✦</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  GOLDEN RATIO CONSTANTS
+// ═══════════════════════════════════════════════
+const PHI   = 1.6180339887;
+const PHI2  = PHI * PHI;       // 2.618
+const RPHI  = 1 / PHI;         // 0.618
+const GOLD  = '#C9A84C';
+const GOLD2 = '#E8C96B';
+const GOLD3 = '#F5E6A3';
+
+let currentPattern = 'spiral';
+let facingMode     = 'user';
+let overlayOpacity = 0.75;
+let stream         = null;
+
+const W = 100; // SVG viewBox width
+const H = 133; // SVG viewBox height (4:3 ratio ≈ golden)
+
+// ═══════════════════════════════════════════════
+//  BACKGROUND SACRED GEOMETRY CANVAS
+// ═══════════════════════════════════════════════
+function drawBgGeometry() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx    = canvas.getContext('2d');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const cx = canvas.width  / 2;
+  const cy = canvas.height / 2;
+
+  ctx.strokeStyle = '#C9A84C';
+  ctx.lineWidth   = 0.4;
+
+  // Fibonacci spiral in background
+  let a = 15, b = Math.round(a * PHI);
+  let x = cx, y = cy;
+  const angles = [0, Math.PI/2, Math.PI, 3*Math.PI/2];
+  let dir = 0;
+
+  for (let i = 0; i < 9; i++) {
+    ctx.beginPath();
+    ctx.arc(x, y, a, angles[dir%4], angles[dir%4] + Math.PI/2);
+    ctx.stroke();
+
+    // Draw rectangle
+    ctx.strokeRect(
+      dir%4===0 ? x-a   : dir%4===1 ? x : dir%4===2 ? x : x-b,
+      dir%4===0 ? y-a   : dir%4===1 ? y-b : dir%4===2 ? y : y,
+      dir%4===0||dir%4===2 ? a : b,
+      dir%4===0||dir%4===2 ? b : a
+    );
+
+    const next = Math.round(a * PHI);
+    switch (dir % 4) {
+      case 0: y -= a;    break;
+      case 1: x += a;    break;
+      case 2: y += next; break;
+      case 3: x -= next; break;
+    }
+    a = b; b = next; dir++;
+  }
+
+  // Pentagon/pentagram (phi lives in pentagon)
+  const pR = Math.min(canvas.width, canvas.height) * 0.38;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const ang  = (i * 4 * Math.PI / 5) - Math.PI / 2;
+    const ang2 = ((i+1) * 4 * Math.PI / 5) - Math.PI / 2;
+    ctx.moveTo(cx + pR * Math.cos(ang),  cy + pR * Math.sin(ang));
+    ctx.lineTo(cx + pR * Math.cos(ang2), cy + pR * Math.sin(ang2));
+  }
+  ctx.stroke();
+
+  // Concentric circles in PHI ratios
+  for (let r = 30; r < Math.max(canvas.width, canvas.height); r = Math.round(r * PHI)) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2*Math.PI);
+    ctx.globalAlpha = 0.3;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  CAMERA
+// ═══════════════════════════════════════════════
+async function startCamera() {
+  document.getElementById('permission-screen').classList.add('hidden');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width:{ideal:1280}, height:{ideal:960} },
+      audio: false
+    });
+    document.getElementById('video').srcObject = stream;
+    drawPattern(currentPattern);
+  } catch(e) {
+    alert('Camera access denied: ' + e.message);
+    document.getElementById('permission-screen').classList.remove('hidden');
+  }
+}
+
+async function flipCamera() {
+  facingMode = facingMode === 'user' ? 'environment' : 'user';
+  if (stream) { stream.getTracks().forEach(t => t.stop()); }
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode, width:{ideal:1280}, height:{ideal:960} },
+    audio: false
+  });
+  document.getElementById('video').srcObject = stream;
+}
+
+// ═══════════════════════════════════════════════
+//  PATTERN DRAWING — ALL GOLDEN RATIO BASED
+// ═══════════════════════════════════════════════
+function drawPattern(name) {
+  const g = document.getElementById('pattern-group');
+  g.innerHTML = '';
+
+  const patterns = {
+    spiral : drawGoldenSpiral,
+    grid   : drawGoldenGrid,
+    rect   : drawGoldenRects,
+    eyes   : drawGoldenEyes,
+    all    : drawAllPatterns,
+  };
+
+  (patterns[name] || patterns.spiral)(g);
+
+  // Apply opacity
+  g.style.opacity = overlayOpacity;
+}
+
+// ─── Pattern 1: GOLDEN FIBONACCI SPIRAL ───
+function drawGoldenSpiral(g) {
+  const cx = W / 2;
+  const cy = H / 2;
+
+  // Fibonacci rectangles proportioned to viewBox
+  const units = [
+    {x: cx,      y: cy - H*RPHI, w: W*RPHI,      h: H*RPHI,       a0: Math.PI,    a1: 3*Math.PI/2, ox: cx,             oy: cy - H*RPHI},
+    {x: cx,      y: cy - H*RPHI, w: W*(1-RPHI),   h: H*(1-RPHI),   a0: -Math.PI/2, a1: 0,           ox: cx+(W*(1-RPHI)),oy: cy - H*RPHI + H*(1-RPHI)},
+    {x: cx,      y: cy,          w: W,             h: H*(1-RPHI),   a0: 0,          a1: Math.PI/2,   ox: cx,             oy: cy + H*(1-RPHI)},
+    {x: 0,       y: cy - H*RPHI, w: cx,            h: H,            a0: Math.PI/2,  a1: Math.PI,     ox: cx,             oy: cy},
+  ];
+
+  // Draw rectangles
+  units.forEach(u => {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', u.x); rect.setAttribute('y', u.y);
+    rect.setAttribute('width', u.w); rect.setAttribute('height', u.h);
+    rect.setAttribute('fill', 'none');
+    rect.setAttribute('stroke', GOLD);
+    rect.setAttribute('stroke-width', '0.25');
+    rect.setAttribute('opacity', '0.5');
+    rect.classList.add('grid-line');
+    g.appendChild(rect);
+  });
+
+  // Spiral path — Archimedean approximation
+  const spiralPath = document.createElementNS('http://www.w3.org/2000/svg','path');
+  let d = '';
+  let r = 3, theta = 0, px = cx, py = cy;
+  const steps = 800;
+  d += `M ${px} ${py}`;
+  for (let i = 0; i < steps; i++) {
+    theta += 0.07;
+    r     *= Math.pow(PHI, 0.07 / (2*Math.PI));
+    const nx = cx + r * Math.cos(theta);
+    const ny = cy + r * Math.sin(theta);
+    if (nx < -10 || nx > W+10 || ny < -10 || ny > H+10) break;
+    d += ` L ${nx.toFixed(2)} ${ny.toFixed(2)}`;
+  }
+
+  spiralPath.setAttribute('d', d);
+  spiralPath.setAttribute('fill', 'none');
+  spiralPath.setAttribute('stroke', 'url(#goldGrad)');
+  spiralPath.setAttribute('stroke-width', '0.55');
+  spiralPath.setAttribute('filter', 'url(#strong-glow)');
+  spiralPath.classList.add('spiral-path');
+  g.appendChild(spiralPath);
+
+  // Golden ratio division lines
+  const lines = [
+    [W*RPHI, 0, W*RPHI, H],
+    [0, H*RPHI, W, H*RPHI],
+  ];
+  lines.forEach(([x1,y1,x2,y2]) => {
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1); l.setAttribute('y1',y1);
+    l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+    l.setAttribute('stroke', GOLD3); l.setAttribute('stroke-width','0.15');
+    l.setAttribute('opacity','0.4'); l.setAttribute('stroke-dasharray','1,1');
+    g.appendChild(l);
+  });
+
+  // Phi markers at intersections
+  [[W*RPHI, H*RPHI], [W*(1-RPHI), H*(1-RPHI)],
+   [W*RPHI, H*(1-RPHI)], [W*(1-RPHI), H*RPHI]].forEach(([x,y]) => {
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r','0.8');
+    c.setAttribute('fill', GOLD); c.setAttribute('filter','url(#glow)');
+    g.appendChild(c);
+  });
+
+  // Center phi label
+  const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+  txt.setAttribute('x', W - 14); txt.setAttribute('y', H - 4);
+  txt.setAttribute('fill', GOLD); txt.setAttribute('font-size','4');
+  txt.setAttribute('font-style','italic'); txt.setAttribute('opacity','0.6');
+  txt.textContent = 'φ = 1.618';
+  g.appendChild(txt);
+}
+
+// ─── Pattern 2: GOLDEN GRID ───
+function drawGoldenGrid(g) {
+  const RPHI = 0.618;
+
+  // Vertical dividers at phi intervals
+  const vDivs = [];
+  let x = 0;
+  while (x < W) {
+    vDivs.push(x);
+    x += (W - x) * RPHI;
+  }
+  // Horizontal dividers
+  const hDivs = [];
+  let y = 0;
+  while (y < H) {
+    hDivs.push(y);
+    y += (H - y) * RPHI;
+  }
+
+  vDivs.forEach((vx, i) => {
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',vx); l.setAttribute('y1',0);
+    l.setAttribute('x2',vx); l.setAttribute('y2',H);
+    l.setAttribute('stroke', i%2===0 ? GOLD : GOLD3);
+    l.setAttribute('stroke-width', i===0||i===vDivs.length-1 ? '0' : '0.2');
+    l.setAttribute('opacity','0.6');
+    l.classList.add('grid-line');
+    l.style.animationDelay = `${i*0.08}s`;
+    g.appendChild(l);
+  });
+
+  hDivs.forEach((hy, i) => {
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',0); l.setAttribute('y1',hy);
+    l.setAttribute('x2',W); l.setAttribute('y2',hy);
+    l.setAttribute('stroke', i%2===0 ? GOLD : GOLD3);
+    l.setAttribute('stroke-width', i===0||i===hDivs.length-1 ? '0' : '0.2');
+    l.setAttribute('opacity','0.6');
+    l.classList.add('grid-line');
+    l.style.animationDelay = `${i*0.1}s`;
+    g.appendChild(l);
+  });
+
+  // Highlight phi points
+  vDivs.slice(1,-1).forEach(vx => {
+    hDivs.slice(1,-1).forEach(hy => {
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',vx); c.setAttribute('cy',hy); c.setAttribute('r','0.9');
+      c.setAttribute('fill',GOLD2); c.setAttribute('filter','url(#glow)');
+      g.appendChild(c);
+    });
+  });
+
+  // Rule of thirds helper (faint)
+  [W/3, 2*W/3].forEach(vx => {
+    [H/3, 2*H/3].forEach(hy => {
+      const l1 = document.createElementNS('http://www.w3.org/2000/svg','line');
+      l1.setAttribute('x1',vx); l1.setAttribute('y1',0);
+      l1.setAttribute('x2',vx); l1.setAttribute('y2',H);
+      l1.setAttribute('stroke','#ffffff'); l1.setAttribute('stroke-width','0.1');
+      l1.setAttribute('opacity','0.15'); l1.setAttribute('stroke-dasharray','0.5,1.5');
+      g.appendChild(l1);
+      const l2 = document.createElementNS('http://www.w3.org/2000/svg','line');
+      l2.setAttribute('x1',0); l2.setAttribute('y1',hy);
+      l2.setAttribute('x2',W); l2.setAttribute('y2',hy);
+      l2.setAttribute('stroke','#ffffff'); l2.setAttribute('stroke-width','0.1');
+      l2.setAttribute('opacity','0.15'); l2.setAttribute('stroke-dasharray','0.5,1.5');
+      g.appendChild(l2);
+    });
+  });
+}
+
+// ─── Pattern 3: GOLDEN RECTANGLES ───
+function drawGoldenRects(g) {
+  const drawRect = (x, y, w, h, level) => {
+    if (level > 7 || w < 1 || h < 1) return;
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x',x); rect.setAttribute('y',y);
+    rect.setAttribute('width',w); rect.setAttribute('height',h);
+    rect.setAttribute('fill','none');
+    rect.setAttribute('stroke', level%2===0 ? GOLD : GOLD3);
+    rect.setAttribute('stroke-width', Math.max(0.1, 0.5 - level*0.06));
+    rect.setAttribute('opacity', Math.max(0.15, 0.8 - level*0.1));
+    rect.classList.add('grid-line');
+    rect.style.animationDelay = `${level * 0.15}s`;
+    g.appendChild(rect);
+
+    // Add spiral arc for each rectangle
+    const arc = document.createElementNS('http://www.w3.org/2000/svg','path');
+    let d;
+    if (w > h) {
+      const sq = h;
+      d = `M ${x} ${y+sq} A ${sq} ${sq} 0 0 1 ${x+sq} ${y}`;
+      drawRect(x+sq, y, w-sq, h, level+1);
+    } else {
+      const sq = w;
+      d = `M ${x+sq} ${y} A ${sq} ${sq} 0 0 0 ${x} ${y+sq}`;
+      drawRect(x, y+sq, w, h-sq, level+1);
+    }
+    arc.setAttribute('d', d);
+    arc.setAttribute('fill','none');
+    arc.setAttribute('stroke', GOLD2);
+    arc.setAttribute('stroke-width', Math.max(0.08, 0.35-level*0.04));
+    arc.setAttribute('opacity', Math.max(0.1, 0.7-level*0.08));
+    arc.setAttribute('filter','url(#glow)');
+    g.appendChild(arc);
+  };
+
+  drawRect(0, 0, W, H, 0);
+}
+
+// ─── Pattern 4: GOLDEN EYES / VESICA PISCIS ───
+function drawGoldenEyes(g) {
+  const cx = W/2, cy = H/2;
+
+  // Multiple concentric vesica piscis in phi ratio
+  let r = 8;
+  for (let i = 0; i < 6; i++) {
+    const r2 = r * PHI;
+    const d  = r;
+
+    // Vesica left
+    const arc1 = document.createElementNS('http://www.w3.org/2000/svg','path');
+    arc1.setAttribute('d', `M ${cx} ${cy-r2*0.866}
+      A ${r2} ${r2} 0 0 1 ${cx} ${cy+r2*0.866}`);
+    arc1.setAttribute('fill','none');
+    arc1.setAttribute('stroke', i%2===0 ? GOLD : GOLD3);
+    arc1.setAttribute('stroke-width','0.2');
+    arc1.setAttribute('opacity', 0.7 - i*0.08);
+    arc1.setAttribute('filter','url(#glow)');
+    g.appendChild(arc1);
+
+    // Vesica right
+    const arc2 = arc1.cloneNode();
+    arc2.setAttribute('d', `M ${cx} ${cy+r2*0.866}
+      A ${r2} ${r2} 0 0 1 ${cx} ${cy-r2*0.866}`);
+    g.appendChild(arc2);
+
+    // Full circle
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',r);
+    c.setAttribute('fill','none'); c.setAttribute('stroke',GOLD);
+    c.setAttribute('stroke-width','0.15'); c.setAttribute('opacity',0.35-i*0.04);
+    g.appendChild(c);
+
+    // Diagonal phi lines
+    if (i < 3) {
+      const diag = document.createElementNS('http://www.w3.org/2000/svg','line');
+      diag.setAttribute('x1', cx-r*1.3); diag.setAttribute('y1', cy-r*1.3);
+      diag.setAttribute('x2', cx+r*1.3); diag.setAttribute('y2', cy+r*1.3);
+      diag.setAttribute('stroke',GOLD3); diag.setAttribute('stroke-width','0.12');
+      diag.setAttribute('opacity','0.2');
+      g.appendChild(diag);
+    }
+
+    r = r2;
+  }
+
+  // Center golden dot
+  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  dot.setAttribute('cx',cx); dot.setAttribute('cy',cy); dot.setAttribute('r','1.2');
+  dot.setAttribute('fill',GOLD2); dot.setAttribute('filter','url(#strong-glow)');
+  g.appendChild(dot);
+
+  // Frame lines
+  [[0,H*RPHI,W,H*RPHI],[W*RPHI,0,W*RPHI,H]].forEach(([x1,y1,x2,y2])=>{
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);
+    l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+    l.setAttribute('stroke',GOLD);l.setAttribute('stroke-width','0.15');
+    l.setAttribute('opacity','0.3');l.setAttribute('stroke-dasharray','2,2');
+    g.appendChild(l);
+  });
+}
+
+// ─── Pattern 5: ALL COMBINED ───
+function drawAllPatterns(g) {
+  const g1 = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g1.setAttribute('opacity','0.5'); drawGoldenGrid(g1); g.appendChild(g1);
+  const g2 = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g2.setAttribute('opacity','0.6'); drawGoldenSpiral(g2); g.appendChild(g2);
+  const g3 = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g3.setAttribute('opacity','0.35'); drawGoldenEyes(g3); g.appendChild(g3);
+}
+
+// ═══════════════════════════════════════════════
+//  UI CONTROLS
+// ═══════════════════════════════════════════════
+function setPattern(name) {
+  currentPattern = name;
+  drawPattern(name);
+
+  document.querySelectorAll('.pat-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.pat === name);
+  });
+  document.getElementById('pattern-chip').textContent = name.toUpperCase();
+}
+
+function updateOpacity(val) {
+  overlayOpacity = val / 100;
+  document.getElementById('opacity-val').textContent = val + '%';
+  const g = document.getElementById('pattern-group');
+  if (g) g.style.opacity = overlayOpacity;
+}
+
+function toggleOpacityPanel() {
+  document.getElementById('opacity-popup').classList.toggle('visible');
+}
+
+function capturePhoto() {
+  const flash = document.getElementById('flash');
+  const video = document.getElementById('video');
+
+  flash.classList.add('flash-on');
+  setTimeout(() => flash.classList.remove('flash-on'), 120);
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = video.videoWidth  || 1280;
+  canvas.height = video.videoHeight || 960;
+  const ctx = canvas.getContext('2d');
+
+  // Mirror if front camera
+  if (facingMode === 'user') {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, 0, 0);
+
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `GoldenEye_phi_${Date.now()}.jpg`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, 'image/jpeg', 0.95);
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+window.addEventListener('load', () => {
+  drawBgGeometry();
+  window.addEventListener('resize', drawBgGeometry);
+
+  // Close opacity panel on outside click
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#opacity-popup') && !e.target.closest('#opacity-btn')) {
+      document.getElementById('opacity-popup').classList.remove('visible');
+    }
+  });
+});
+</script>
+</body>
+</html>
